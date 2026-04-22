@@ -1,0 +1,228 @@
+<div class="dashboard-container">
+  <header class="header">
+    <div class="header-brand">
+      <div class="brand-icon">⬛</div>
+      <div>
+        <h1>COBOL Analytics Dashboard</h1>
+        <span class="brand-sub">Monitoramento de ABENDs em Tempo Real</span>
+      </div>
+    </div>
+    <div class="header-status">
+      <span class="status-dot"></span>
+      <span>Sistema Online</span>
+    </div>
+  </header>
+
+  <!-- KPI Cards -->
+  <section class="metrics-grid">
+    <div class="metric-card danger">
+      <div class="metric-icon">🔴</div>
+      <div>
+        <h3>Total de Erros</h3>
+        <p class="value">{{totals.totalErrors}}</p>
+      </div>
+    </div>
+    <div class="metric-card accent">
+      <div class="metric-icon">📦</div>
+      <div>
+        <h3>Objetos Afetados</h3>
+        <p class="value">{{totals.totalDistinctObjects}}</p>
+      </div>
+    </div>
+    <div class="metric-card success">
+      <div class="metric-icon">💻</div>
+      <div>
+        <h3>Programas Distintos</h3>
+        <p class="value">{{totals.totalDistinctPrograms}}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>Distribuição por Horário</h3>
+        <span class="chart-badge">Pico de ABENDs</span>
+      </div>
+      <canvas #hourChart></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>Volume por Dia do Mês</h3>
+        <span class="chart-badge">Tendência</span>
+      </div>
+      <canvas #dayChart></canvas>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section class="filters-panel">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Programa</label>
+        <input type="text" [(ngModel)]="filterProgram" placeholder="ex: PGM00A">
+      </div>
+      <div class="filter-group">
+        <label>Objeto de Negócio</label>
+        <input type="text" [(ngModel)]="filterObject" placeholder="ex: OBJ-AA">
+      </div>
+      <div class="filter-actions">
+        <button class="btn-primary" (click)="applyFilters()">
+          🔍 Aplicar
+        </button>
+        <button class="btn-ghost" (click)="clearFilters()">
+          ✕ Limpar
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <div class="table-header">
+      <span class="table-title">Registros de Erro <span class="count-badge">{{errors.length}}</span></span>
+      <span class="table-hint">Clique em uma linha para ver os detalhes</span>
+    </div>
+
+    <div class="loading-bar" *ngIf="loading"></div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>CICS/CPU</th>
+          <th>PROGRAMA</th>
+          <th>OBJETO DE NEGÓCIO</th>
+          <th>CÓDIGO DE ERRO</th>
+          <th>HORÁRIO</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let err of errors"
+            (click)="openDetail(err)"
+            [class.selected]="isCurrentError(err.id)"
+            class="table-row">
+          <td>
+            <span class="cpu-text">{{err.correlation?.cicsCpu}}</span>
+            <span class="badge-task">{{err.correlation?.taskCode}}</span>
+          </td>
+          <td><strong>{{err.programName}}</strong></td>
+          <td>
+            {{err.correlation?.creditObjectNumber}}
+            <span class="type-label">{{err.correlation?.creditObjectType}}</span>
+          </td>
+          <td><span class="badge-error">{{err.errorCode}}</span></td>
+          <td class="timestamp">{{err.timestamp | date:'dd/MM/yyyy HH:mm:ss'}}</td>
+          <td class="arrow-cell">›</td>
+        </tr>
+        <tr *ngIf="errors.length === 0 && !loading">
+          <td colspan="6" class="empty-state">
+            <div>🔍 Nenhum registro encontrado para os filtros aplicados.</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="drawer-overlay" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
+
+<!-- Detail Drawer -->
+<aside class="detail-drawer" [class.open]="drawerOpen">
+  <div class="drawer-header">
+    <button class="btn-close" (click)="closeDrawer()">← Fechar</button>
+    <span class="drawer-title" *ngIf="selectedDetail">
+      <span class="badge-error">{{selectedDetail.error.errorCode}}</span>
+      Detalhamento da Ocorrência
+    </span>
+  </div>
+
+  <div class="drawer-loading" *ngIf="detailLoading">
+    <div class="spinner"></div>
+    <span>Carregando detalhes...</span>
+  </div>
+
+  <div class="drawer-content" *ngIf="selectedDetail && !detailLoading">
+
+    <!-- Section: Error Details -->
+    <div class="drawer-section">
+      <h4 class="section-title">📋 Dados da Ocorrência</h4>
+      <div class="info-grid">
+        <div class="info-row">
+          <span class="info-label">Programa</span>
+          <span class="info-value mono">{{selectedDetail.error.programName}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">CICS/CPU</span>
+          <span class="info-value mono">{{selectedDetail.correlation.cicsCpu}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Task Code</span>
+          <span class="info-value mono">{{selectedDetail.correlation.taskCode}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Objeto de Negócio</span>
+          <span class="info-value">{{selectedDetail.correlation.creditObjectNumber}} ({{selectedDetail.correlation.creditObjectType}})</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Horário</span>
+          <span class="info-value">{{selectedDetail.error.timestamp | date:'dd/MM/yyyy HH:mm:ss'}}</span>
+        </div>
+        <div class="info-row full">
+          <span class="info-label">Mensagem</span>
+          <span class="info-value">{{selectedDetail.error.errorMessage}}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Variables -->
+    <div class="drawer-section">
+      <h4 class="section-title">🔬 Variáveis Monitoradas <span class="count-badge">{{selectedDetail.variables.length}}</span></h4>
+      <table class="var-table" *ngIf="selectedDetail.variables.length > 0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Variável</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let v of selectedDetail.variables">
+            <td class="seq">{{v.sequence}}</td>
+            <td class="mono">{{v.variableName}}</td>
+            <td class="mono accent-text">{{v.variableValue}}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty-small" *ngIf="selectedDetail.variables.length === 0">
+        Nenhuma variável registrada para esta ocorrência.
+      </div>
+    </div>
+
+    <!-- Section: Related Errors -->
+    <div class="drawer-section">
+      <h4 class="section-title">🔗 Erros Correlacionados <span class="count-badge">{{selectedDetail.relatedErrors.length}}</span></h4>
+      <p class="section-desc">Todos os erros do mesmo contexto (CPU/Task/Objeto), do mais antigo ao mais recente.</p>
+      <div class="related-list">
+        <div *ngFor="let rel of selectedDetail.relatedErrors; let i = index"
+             class="related-item"
+             [class.current]="rel.id === selectedDetail.error.id"
+             (click)="openDetail(rel)">
+          <div class="related-index">{{i + 1}}</div>
+          <div class="related-body">
+            <div class="related-top">
+              <span class="badge-error small">{{rel.errorCode}}</span>
+              <strong class="mono">{{rel.programName}}</strong>
+              <span class="current-tag" *ngIf="rel.id === selectedDetail.error.id">← atual</span>
+            </div>
+            <div class="related-time">{{rel.timestamp | date:'dd/MM/yyyy HH:mm:ss.SSS'}}</div>
+            <div class="related-msg">{{rel.errorMessage}}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</aside>
